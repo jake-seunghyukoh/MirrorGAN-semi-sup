@@ -1,0 +1,5 @@
+{
+  "python.pythonPath": "/mnt/home/20170402/.conda/envs/mirror/bin/python",
+  "editor.formatOnSave": true,
+  "python.formatting.provider": "black"
+}

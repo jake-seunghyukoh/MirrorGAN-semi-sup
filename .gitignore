@@ -1,0 +1,7 @@
+*.pyc
+miscc/*.pyc
+.DS_Store
+.idea/
+birds/
+output/
+*.zip
