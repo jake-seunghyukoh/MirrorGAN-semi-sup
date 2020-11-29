@@ -5,3 +5,4 @@ miscc/*.pyc
 birds/
 output/
 *.zip
+birds*

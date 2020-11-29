@@ -167,7 +167,6 @@ class TextDataset(data.Dataset):
                     # and drops everything else
                     tokenizer = RegexpTokenizer(r"\w+")
                     tokens = tokenizer.tokenize(cap.lower())
-                    # print('tokens', tokens)
                     if len(tokens) == 0:
                         print("cap", cap)
                         continue
@@ -256,7 +255,7 @@ class TextDataset(data.Dataset):
             with open(filepath, "rb") as f:
                 x = pickle.load(f)
                 train_captions, test_captions = x[0], x[1]
-                ixtoword, wordtoix = x[2], x[3] \
+                ixtoword, wordtoix = x[2], x[3]
                 del x
                 n_words = len(ixtoword)
                 print("Load from: ", filepath)
@@ -271,7 +270,6 @@ class TextDataset(data.Dataset):
         return filenames, captions, ixtoword, wordtoix, n_words
 
     def load_class_id(self, data_dir, total_num):
-        print(data_dir + "/class_info.pickle")
         if os.path.isfile(data_dir + "/class_info.pickle"):
             with open(data_dir + "/class_info.pickle", "rb") as f:
                 class_id = pickle.load(f, encoding="bytes")

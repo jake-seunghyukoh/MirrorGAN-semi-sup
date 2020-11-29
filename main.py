@@ -138,14 +138,14 @@ if __name__ == "__main__":
         cfg.DATA_DIR, split_dir, base_size=cfg.TREE.BASE_SIZE, transform=image_transform
     )
 
-    # Sample some portion of the data
-    idx = list(range(0, num_subset))  # index 0 ~ 100
-    subset = torch.utils.data.Subset(dataset, idx)  # TODO: select idx to train
-    print(subset)
+    # # Sample some portion of the data
+    # idx = list(range(0, num_subset))  # index 0 ~ 100
+    # subset = torch.utils.data.Subset(dataset, idx)  # TODO: select idx to train
+    # print(subset)
 
     assert dataset
     dataloader = torch.utils.data.DataLoader(
-        subset,
+        dataset,
         batch_size=cfg.TRAIN.BATCH_SIZE,
         drop_last=True,
         shuffle=bshuffle,
@@ -153,7 +153,7 @@ if __name__ == "__main__":
     )
 
     # Define models and go to train/evaluate
-    algo = trainer(output_dir, dataloader, num_subset, dataset.ixtoword)
+    algo = trainer(output_dir, dataloader, dataset.n_words, dataset.ixtoword)
 
     start_t = time.time()
     if cfg.TRAIN.FLAG:
