@@ -94,7 +94,9 @@ def build_super_images(
         iend = (i + 3) * (vis_size + 2)
         text_convas[:, istart:iend, :] = COLOR_DIC[i]
 
-    real_imgs = nn.Upsample(size=(vis_size, vis_size), mode="bilinear")(real_imgs)
+    real_imgs = nn.Upsample(
+        size=(vis_size, vis_size), mode="bilinear", align_corners=False
+    )(real_imgs)
     # [-1, 1] --> [0, 1]
     real_imgs.add_(1).div_(2).mul_(255)
     real_imgs = real_imgs.data.numpy()
@@ -104,7 +106,9 @@ def build_super_images(
     middle_pad = np.zeros([pad_sze[2], 2, 3])
     post_pad = np.zeros([pad_sze[1], pad_sze[2], 3])
     if lr_imgs is not None:
-        lr_imgs = nn.Upsample(size=(vis_size, vis_size), mode="bilinear")(lr_imgs)
+        lr_imgs = nn.Upsample(
+            size=(vis_size, vis_size), mode="bilinear", align_corners=False
+        )(lr_imgs)
         # [-1, 1] --> [0, 1]
         lr_imgs.add_(1).div_(2).mul_(255)
         lr_imgs = lr_imgs.data.numpy()
@@ -146,7 +150,7 @@ def build_super_images(
             if (vis_size // att_sze) > 1:
                 one_map = skimage.transform.pyramid_expand(
                     one_map, sigma=20, upscale=vis_size // att_sze
-                )
+                )[:, :, 0:3]
             row_beforeNorm.append(one_map)
             minV = one_map.min()
             maxV = one_map.max()
@@ -201,7 +205,9 @@ def build_super_images2(
         [batch_size * FONT_MAX, max_word_num * (vis_size + 2), 3], dtype=np.uint8
     )
 
-    real_imgs = nn.Upsample(size=(vis_size, vis_size), mode="bilinear")(real_imgs)
+    real_imgs = nn.Upsample(
+        size=(vis_size, vis_size), mode="bilinear", align_corners=False
+    )(real_imgs)
     # [-1, 1] --> [0, 1]
     real_imgs.add_(1).div_(2).mul_(255)
     real_imgs = real_imgs.data.numpy()
