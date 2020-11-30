@@ -29,7 +29,7 @@ def func_attention(query, context, gamma1):
     attn = torch.bmm(contextT, query)
     # --> batch*sourceL x queryL
     attn = attn.view(batch_size * sourceL, queryL)
-    attn = nn.Softmax()(attn)  # Eq. (8)
+    attn = nn.Softmax(dim=1)(attn)  # Eq. (8)
 
     # --> batch x sourceL x queryL
     attn = attn.view(batch_size, sourceL, queryL)
@@ -38,7 +38,7 @@ def func_attention(query, context, gamma1):
     attn = attn.view(batch_size * queryL, sourceL)
 
     attn = attn * gamma1
-    attn = nn.Softmax()(attn)
+    attn = nn.Softmax(dim=1)(attn)
     attn = attn.view(batch_size, queryL, sourceL)
     # --> batch x sourceL x queryL
     attnT = torch.transpose(attn, 1, 2).contiguous()
