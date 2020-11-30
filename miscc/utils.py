@@ -1,17 +1,14 @@
-import os
 import errno
-import numpy as np
-from torch.nn import init
+import os
+from copy import deepcopy
 
+import numpy as np
+import skimage.transform
 import torch
 import torch.nn as nn
-
-from PIL import Image, ImageDraw, ImageFont
-from copy import deepcopy
-import skimage.transform
-
 from cfg.config import cfg
-
+from PIL import Image, ImageDraw, ImageFont
+from torch.nn import init
 
 # For visualization ################################################
 COLOR_DIC = {
