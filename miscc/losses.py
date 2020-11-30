@@ -36,7 +36,7 @@ def sent_loss(cnn_code, rnn_code, labels, class_ids, batch_size, eps=1e-8):
         masks = torch.ByteTensor(masks)
         if cfg.CUDA:
             masks = masks.cuda()
-
+    masks = torch.gt(masks, 0)
     # --> seq_len x batch_size x nef
     if cnn_code.dim() == 2:
         cnn_code = cnn_code.unsqueeze(0)
@@ -122,6 +122,7 @@ def words_loss(img_features, words_emb, labels, cap_lens, class_ids, batch_size)
         masks = torch.ByteTensor(masks)
         if cfg.CUDA:
             masks = masks.cuda()
+    masks = torch.gt(masks, 0)
 
     similarities = similarities * cfg.TRAIN.SMOOTH.GAMMA3
     if class_ids is not None:
@@ -148,6 +149,7 @@ def discriminator_loss(
     cond_real_errD = nn.BCELoss()(cond_real_logits, real_labels)
     cond_fake_logits = netD.COND_DNET(fake_features, conditions)
     cond_fake_errD = nn.BCELoss()(cond_fake_logits, fake_labels)
+
     #
     batch_size = real_features.size(0)
     cond_wrong_logits = netD.COND_DNET(

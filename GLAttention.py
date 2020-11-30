@@ -92,6 +92,7 @@ class GLAttentionGeneral(nn.Module):
         if self.mask is not None:
             # batch_size x sourceL --> batch_size*queryL x sourceL
             mask = self.mask.repeat(queryL, 1)
+            mask = torch.gt(mask, 0)
             attn.data.masked_fill_(mask.data, -float("inf"))
         attn = self.sm(attn)  # Eq. (2)
         # --> batch x queryL x sourceL
