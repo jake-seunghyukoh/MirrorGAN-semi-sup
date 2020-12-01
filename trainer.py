@@ -96,6 +96,8 @@ class Trainer(object):
 
         # Generator and Discriminator:
         netsD = []
+
+        # cfg.GAN.B_DCGAN == False
         if cfg.GAN.B_DCGAN:
             if cfg.TREE.BRANCH_NUM == 1:
                 from model import D_NET64 as D_NET
@@ -110,20 +112,24 @@ class Trainer(object):
             from model import D_NET64, D_NET128, D_NET256
 
             netG = G_NET()
+            # Tcfg.REE.BRANCH_NUM == 3
             if cfg.TREE.BRANCH_NUM > 0:
                 netsD.append(D_NET64())
             if cfg.TREE.BRANCH_NUM > 1:
                 netsD.append(D_NET128())
             if cfg.TREE.BRANCH_NUM > 2:
                 netsD.append(D_NET256())
+
         netG.apply(weights_init)
-        # print(netG)
+
         for i in range(len(netsD)):
             netsD[i].apply(weights_init)
-            # print(netsD[i])
+
         print("# of netsD", len(netsD))
 
         epoch = 0
+
+        # cfg.TRAIN.NET_G == ""
         if cfg.TRAIN.NET_G != "":
             state_dict = torch.load(
                 cfg.TRAIN.NET_G, map_location=lambda storage, loc: storage
@@ -281,6 +287,7 @@ class Trainer(object):
         nz = cfg.GAN.Z_DIM
         noise = Variable(torch.FloatTensor(batch_size, nz))
         fixed_noise = Variable(torch.FloatTensor(batch_size, nz).normal_(0, 1))
+
         if cfg.CUDA:
             noise, fixed_noise = noise.cuda(), fixed_noise.cuda()
 
@@ -296,12 +303,15 @@ class Trainer(object):
                 imgs, captions, cap_lens, class_ids, keys = prepare_data(data)
 
                 hidden = text_encoder.init_hidden(batch_size)
+
                 # words_embs: batch_size x nef x seq_len
                 # sent_emb: batch_size x nef
                 words_embs, sent_emb = text_encoder(captions, cap_lens, hidden)
                 words_embs, sent_emb = words_embs.detach(), sent_emb.detach()
+
                 mask = captions == 0
                 num_words = words_embs.size(2)
+
                 if mask.size(1) > num_words:
                     mask = mask[:, :num_words]
 
@@ -350,6 +360,7 @@ class Trainer(object):
                 kl_loss = KL_loss(mu, logvar)
                 errG_total += kl_loss
                 G_logs += "kl_loss: %.2f " % kl_loss.data
+
                 # backward and update parameters
                 errG_total.backward()
                 optimizerG.step()
@@ -358,6 +369,7 @@ class Trainer(object):
 
                 if gen_iterations % 100 == 0:
                     print(D_logs + "\n" + G_logs)
+
                 # save images
                 if gen_iterations % 1000 == 0:
                     backup_para = copy_G_params(netG)

@@ -45,6 +45,7 @@ def sent_loss(cnn_code, rnn_code, labels, class_ids, batch_size, eps=1e-8):
     # cnn_code_norm / rnn_code_norm: seq_len x batch_size x 1
     cnn_code_norm = torch.norm(cnn_code, 2, dim=2, keepdim=True)
     rnn_code_norm = torch.norm(rnn_code, 2, dim=2, keepdim=True)
+
     # scores* / norm*: seq_len x batch_size x batch_size
     scores0 = torch.bmm(cnn_code, rnn_code.transpose(1, 2))
     norm0 = torch.bmm(cnn_code_norm, rnn_code_norm.transpose(1, 2))
@@ -122,7 +123,7 @@ def words_loss(img_features, words_emb, labels, cap_lens, class_ids, batch_size)
         masks = torch.ByteTensor(masks)
         if cfg.CUDA:
             masks = masks.cuda()
-    masks = torch.gt(masks, 0)
+    # masks = torch.gt(masks, 0)
 
     similarities = similarities * cfg.TRAIN.SMOOTH.GAMMA3
     if class_ids is not None:
@@ -137,34 +138,46 @@ def words_loss(img_features, words_emb, labels, cap_lens, class_ids, batch_size)
 
 
 # ##################Loss for G and Ds##############################
-def discriminator_loss(
-    netD, real_imgs, fake_imgs, conditions, real_labels, fake_labels
-):
+def discriminator_loss(netD, real_imgs, fake_imgs, sent_emb, real_labels, fake_labels):
+    # discriminator loss is calculated for each discriminators
+    ## real_labels is a all one tensor
+    ## fake_labels is a all zero tensor
+
     # Forward
+    #
     real_features = netD(real_imgs)
     fake_features = netD(fake_imgs.detach())
-    # loss
-    #
-    cond_real_logits = netD.COND_DNET(real_features, conditions)
-    cond_real_errD = nn.BCELoss()(cond_real_logits, real_labels)
-    cond_fake_logits = netD.COND_DNET(fake_features, conditions)
-    cond_fake_errD = nn.BCELoss()(cond_fake_logits, fake_labels)
 
-    #
+    # loss
+    ## 3rd term
+    cond_real_logits = netD.COND_DNET(real_features, sent_emb)
+    cond_real_errD = nn.BCELoss()(cond_real_logits, real_labels)
+    ## 4th term
+    cond_fake_logits = netD.COND_DNET(fake_features, sent_emb)
+    cond_fake_errD = nn.BCELoss()(cond_fake_logits, fake_labels)
+    ##
     batch_size = real_features.size(0)
     cond_wrong_logits = netD.COND_DNET(
-        real_features[: (batch_size - 1)], conditions[1:batch_size]
+        real_features[: (batch_size - 1)], sent_emb[1:batch_size]
     )
     cond_wrong_errD = nn.BCELoss()(cond_wrong_logits, fake_labels[1:batch_size])
 
+    # netD.UNCOND_DNET is D_GET_LOGITS(ndf, nef, bcondition=False)
+    #
     if netD.UNCOND_DNET is not None:
+        # real_features --> nn.Conv2d --> nn.Sigmoid
         real_logits = netD.UNCOND_DNET(real_features)
+
+        # fake_features --> nn.Conv2d --> nn.Sigmoid
         fake_logits = netD.UNCOND_DNET(fake_features)
-        real_errD = nn.BCELoss()(real_logits, real_labels)
-        fake_errD = nn.BCELoss()(fake_logits, fake_labels)
+
+        real_errD = nn.BCELoss()(real_logits, real_labels)  # 1st term
+        fake_errD = nn.BCELoss()(fake_logits, fake_labels)  # 2nd term
+
         errD = (real_errD + cond_real_errD) / 2.0 + (
             fake_errD + cond_fake_errD + cond_wrong_errD
         ) / 3.0
+        # errD = (real_errD + cond_real_errD) / 2.0 + (fake_errD + cond_fake_errD) / 2.0
     else:
         errD = cond_real_errD + (cond_fake_errD + cond_wrong_errD) / 2.0
     return errD
@@ -186,14 +199,19 @@ def generator_loss(
 ):
     numDs = len(netsD)
     logs = ""
+
     # Forward
+    #
     errG_total = 0
 
     for i in range(numDs):
-        features = netsD[i](fake_imgs[i])
-        cond_logits = netsD[i].COND_DNET(features, sent_emb)
+        features = netsD[i](fake_imgs[i])  # 1st term
+
+        cond_logits = netsD[i].COND_DNET(features, sent_emb)  # 2nd term
         cond_errG = nn.BCELoss()(cond_logits, real_labels)
 
+        # netsD.UNCOND_DNET are all None
+        #
         if netsD[i].UNCOND_DNET is not None:
             logits = netsD[i].UNCOND_DNET(features)
             errG = nn.BCELoss()(logits, real_labels)
@@ -204,6 +222,8 @@ def generator_loss(
 
         logs += "g_loss%d: %.2f " % (i, g_loss.data)
 
+        # Loss_stream
+        #
         if i == (numDs - 1):
             fakeimg_feature = caption_cnn(fake_imgs[i])
             captions.cuda()
