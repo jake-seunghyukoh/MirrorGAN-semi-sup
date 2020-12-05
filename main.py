@@ -20,7 +20,8 @@ import torchvision.transforms as transforms
 dir_path = os.path.abspath(os.path.join(os.path.realpath(__file__), "./."))
 sys.path.append(dir_path)
 
-num_subset = 1000
+num_paired_subset = 2000
+num_unpaired_subset = 1000
 
 
 def parse_args():
@@ -135,25 +136,65 @@ if __name__ == "__main__":
     )
 
     dataset = TextDataset(
-        cfg.DATA_DIR, split_dir, base_size=cfg.TREE.BASE_SIZE, transform=image_transform
+        cfg.DATA_DIR, "train", base_size=cfg.TREE.BASE_SIZE, transform=image_transform
     )
 
-    # # Sample some portion of the data
-    # idx = list(range(0, num_subset))  # index 0 ~ 100
-    # subset = torch.utils.data.Subset(dataset, idx)  # TODO: select idx to train
-    # print(subset)
-
     assert dataset
-    dataloader = torch.utils.data.DataLoader(
-        dataset,
+
+    # Sample from the data
+    p_idx = list(range(0, num_paired_subset))  # index 0 ~ 999
+    paired_subset = torch.utils.data.Subset(dataset, p_idx)
+
+    upi_idx = list(
+        range(num_paired_subset, num_paired_subset + num_unpaired_subset)
+    )  # index 1000 ~ 2999
+    unpaired_image_subset = torch.utils.data.Subset(dataset, upi_idx)
+
+    upc_idx = list(
+        range(
+            num_paired_subset + num_unpaired_subset,
+            num_paired_subset + num_unpaired_subset + num_unpaired_subset,
+        )
+    )  # index 3000 ~ 4999
+    unpaired_caption_subset = torch.utils.data.Subset(dataset, upc_idx)
+
+    print("\npaired index          :", p_idx[0], "   ~", p_idx[-1])
+    print("unpaired iamge index  :", upi_idx[0], "~", upi_idx[-1])
+    print("unpaired caption index:", upc_idx[0], "~", upc_idx[-1], "\n")
+
+    paired_loader = torch.utils.data.DataLoader(
+        paired_subset,
         batch_size=cfg.TRAIN.BATCH_SIZE,
         drop_last=True,
         shuffle=bshuffle,
-        num_workers=int(cfg.WORKERS),
+        num_workers=3,
+    )
+
+    unpaired_image_loader = torch.utils.data.DataLoader(
+        unpaired_image_subset,
+        batch_size=cfg.TRAIN.BATCH_SIZE,
+        drop_last=True,
+        shuffle=bshuffle,
+        num_workers=3,
+    )
+
+    unpaired_caption_loader = torch.utils.data.DataLoader(
+        unpaired_caption_subset,
+        batch_size=cfg.TRAIN.BATCH_SIZE,
+        drop_last=True,
+        shuffle=bshuffle,
+        num_workers=3,
     )
 
     # Define models and go to train/evaluate
-    algo = trainer(output_dir, dataloader, dataset.n_words, dataset.ixtoword)
+    algo = trainer(
+        output_dir,
+        paired_loader,
+        unpaired_image_loader,
+        unpaired_caption_loader,
+        dataset.n_words,
+        dataset.ixtoword,
+    )
 
     start_t = time.time()
     if cfg.TRAIN.FLAG:
