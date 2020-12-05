@@ -138,76 +138,133 @@ def words_loss(img_features, words_emb, labels, cap_lens, class_ids, batch_size)
 
 
 # ##################Loss for G and Ds##############################
-def discriminator_loss(netD, real_imgs, fake_imgs, sent_emb, real_labels, fake_labels):
+def discriminator_loss(
+    netD,
+    paired_real_imgs,
+    unpaired_real_imgs,
+    paired_fake_imgs,
+    paired_sent_emb,
+    unpaired_fake_imgs,
+    unpaired_sent_emb,
+    real_labels,
+    fake_labels,
+):
     # discriminator loss is calculated for each discriminators
     ## real_labels is a all one tensor
     ## fake_labels is a all zero tensor
 
     # Forward
     #
-    real_features = netD(real_imgs)
-    fake_features = netD(fake_imgs.detach())
+    paired_real_features = netD(paired_real_imgs)
+    paired_fake_features = netD(paired_fake_imgs.detach())
+
+    unpaired_real_features = netD(unpaired_real_imgs)
+    unpaired_fake_features = netD(unpaired_fake_imgs.detach())
 
     # loss
     ## 3rd term
-    cond_real_logits = netD.COND_DNET(real_features, sent_emb)
-    cond_real_errD = nn.BCELoss()(cond_real_logits, real_labels)
+    paired_cond_real_logits = netD.COND_DNET(paired_real_features, paired_sent_emb)
+    paired_cond_real_errD = nn.BCELoss()(paired_cond_real_logits, real_labels)
+
+    # unpaired_cond_real_logits = netD.COND_DNET(
+    #     unpaired_real_features, unpaired_sent_emb
+    # )
+    # unpaired_cond_real_errD = nn.BCELoss()(unpaired_cond_real_logits, real_labels)
+
     ## 4th term
-    cond_fake_logits = netD.COND_DNET(fake_features, sent_emb)
-    cond_fake_errD = nn.BCELoss()(cond_fake_logits, fake_labels)
+    paired_cond_fake_logits = netD.COND_DNET(paired_fake_features, paired_sent_emb)
+    paired_cond_fake_errD = nn.BCELoss()(paired_cond_fake_logits, fake_labels)
+
+    # unpaired_cond_fake_logits = netD.COND_DNET(
+    #     unpaired_fake_features, unpaired_sent_emb
+    # )
+    # unpaired_cond_fake_errD = nn.BCELoss()(unpaired_cond_fake_logits, fake_labels)
+
     ##
-    batch_size = real_features.size(0)
-    cond_wrong_logits = netD.COND_DNET(
-        real_features[: (batch_size - 1)], sent_emb[1:batch_size]
+    paired_batch_size = paired_real_features.size(0)
+    paired_cond_wrong_logits = netD.COND_DNET(
+        paired_real_features[: (paired_batch_size - 1)],
+        paired_sent_emb[1:paired_batch_size],
     )
-    cond_wrong_errD = nn.BCELoss()(cond_wrong_logits, fake_labels[1:batch_size])
+    paired_cond_wrong_errD = nn.BCELoss()(
+        paired_cond_wrong_logits, fake_labels[1:paired_batch_size]
+    )
+    # unpaired_batch_size = unpaired_real_features.size(0)
+    # unpaired_cond_wrong_logits = netD.COND_DNET(
+    #     unpaired_real_features[: (unpaired_batch_size - 1)],
+    #     unpaired_sent_emb[1:unpaired_batch_size],
+    # )
+    # unpaired_cond_wrong_errD = nn.BCELoss()(
+    #     unpaired_cond_wrong_logits, fake_labels[1:unpaired_batch_size]
+    # )
 
     # netD.UNCOND_DNET is D_GET_LOGITS(ndf, nef, bcondition=False)
     #
     if netD.UNCOND_DNET is not None:
         # real_features --> nn.Conv2d --> nn.Sigmoid
-        real_logits = netD.UNCOND_DNET(real_features)
+        paired_real_logits = netD.UNCOND_DNET(paired_real_features)
+        unpaired_real_logits = netD.UNCOND_DNET(unpaired_real_features)
 
         # fake_features --> nn.Conv2d --> nn.Sigmoid
-        fake_logits = netD.UNCOND_DNET(fake_features)
+        paired_fake_logits = netD.UNCOND_DNET(paired_fake_features)
+        unpaired_fake_logits = netD.UNCOND_DNET(unpaired_fake_features)
 
-        real_errD = nn.BCELoss()(real_logits, real_labels)  # 1st term
-        fake_errD = nn.BCELoss()(fake_logits, fake_labels)  # 2nd term
+        paired_real_errD = nn.BCELoss()(paired_real_logits, real_labels)  # 1st term
+        paired_fake_errD = nn.BCELoss()(paired_fake_logits, fake_labels)  # 2nd term
 
-        errD = (real_errD + cond_real_errD) / 2.0 + (
-            fake_errD + cond_fake_errD + cond_wrong_errD
-        ) / 3.0
-        # errD = (real_errD + cond_real_errD) / 2.0 + (fake_errD + cond_fake_errD) / 2.0
+        unpaired_real_errD = nn.BCELoss()(unpaired_real_logits, real_labels)  # 1st term
+        unpaired_fake_errD = nn.BCELoss()(unpaired_fake_logits, fake_labels)  # 2nd term
+
+        errD = (
+            (paired_real_errD + paired_cond_real_errD) / 2.0
+            + (paired_fake_errD + paired_cond_fake_errD + paired_cond_wrong_errD) / 3.0
+            + (unpaired_real_errD + unpaired_fake_errD) / 2.0
+            # + (unpaired_real_errD + unpaired_cond_real_errD) / 2.0
+            # + (unpaired_fake_errD + unpaired_cond_fake_errD) / 2.0
+        )
     else:
-        errD = cond_real_errD + (cond_fake_errD + cond_wrong_errD) / 2.0
+        errD = (
+            paired_cond_real_errD
+            + (paired_cond_fake_errD + paired_cond_wrong_errD) / 2.0
+        )
     return errD
 
 
 def generator_loss(
+    real_labels,
+    match_labels,
     netsD,
     image_encoder,
     caption_cnn,
     caption_rnn,
-    captions,
-    fake_imgs,
-    real_labels,
-    words_embs,
-    sent_emb,
-    match_labels,
-    cap_lens,
-    class_ids,
+    paired_fake_imgs,
+    paired_caps,
+    paired_cap_lens,
+    paired_class_ids,
+    paired_words_embs,
+    paired_sent_emb,
+    unpaired_fake_imgs,
+    unpaired_caps,
+    unpaired_cap_lens,
+    unpaired_cap_class_ids,
+    unpaired_words_embs,
+    unpaired_sent_emb,
 ):
     numDs = len(netsD)
-    logs = ""
+    paired_logs = ""
+    unpaired_logs = ""
 
     # Forward
     #
     errG_total = 0
 
     for i in range(numDs):
-        features = netsD[i](fake_imgs[i])  # 1st term
+        ################
+        # Paired Loss
+        ################
+        features = netsD[i](paired_fake_imgs[i])  # 1st term
 
-        cond_logits = netsD[i].COND_DNET(features, sent_emb)  # 2nd term
+        cond_logits = netsD[i].COND_DNET(features, paired_sent_emb)  # 2nd term
         cond_errG = nn.BCELoss()(cond_logits, real_labels)
 
         # netsD.UNCOND_DNET are all None
@@ -220,22 +277,67 @@ def generator_loss(
             g_loss = cond_errG
         errG_total += g_loss
 
-        logs += "g_loss%d: %.2f " % (i, g_loss.data)
+        ################
+        # Unpaired Loss
+        ################
+        features = netsD[i](unpaired_fake_imgs[i])  # 1st term
 
-        # Loss_stream
+        cond_logits = netsD[i].COND_DNET(features, unpaired_sent_emb)  # 2nd term
+        cond_errG = nn.BCELoss()(cond_logits, real_labels)
+
+        # netD.UNCOND_DNET is D_GET_LOGITS(ndf, nef, bcondition=False)
         #
-        if i == (numDs - 1):
-            fakeimg_feature = caption_cnn(fake_imgs[i])
-            captions.cuda()
-            target_cap = pack_padded_sequence(
-                captions, cap_lens.data.tolist(), batch_first=True
-            )[0].cuda()
-            cap_output = caption_rnn(fakeimg_feature, captions, cap_lens)
-            cap_loss = caption_loss(cap_output, target_cap) * cfg.TRAIN.SMOOTH.LAMBDA1
+        if netsD[i].UNCOND_DNET is not None:
+            logits = netsD[i].UNCOND_DNET(features)
+            errG = nn.BCELoss()(logits, real_labels)
+            un_g_loss = errG + cond_errG
+        else:
+            un_g_loss = cond_errG
+        errG_total += un_g_loss
 
-            errG_total += cap_loss
-            logs += "cap_loss: %.2f, " % cap_loss
-    return errG_total, logs
+        paired_logs += "paired_g_loss%d: %.2f " % (
+            i,
+            g_loss.data,
+        )
+        unpaired_logs += "unpaired_g_loss%d: %.2f " % (
+            i,
+            un_g_loss.data,
+        )
+
+        ################
+        # STREAM Loss
+        ################
+        if i == (numDs - 1):
+            paired_fakeimg_feature = caption_cnn(paired_fake_imgs[i])
+            paired_caps.cuda()
+            paired_target_cap = pack_padded_sequence(
+                paired_caps, paired_cap_lens.data.tolist(), batch_first=True
+            )[0].cuda()
+            paired_cap_output = caption_rnn(
+                paired_fakeimg_feature, paired_caps, paired_cap_lens
+            )
+            paired_cap_loss = (
+                caption_loss(paired_cap_output, paired_target_cap)
+                * cfg.TRAIN.SMOOTH.LAMBDA1
+            )
+
+            unpaired_fakeimg_feature = caption_cnn(unpaired_fake_imgs[i])
+            unpaired_caps.cuda()
+            unpaired_target_cap = pack_padded_sequence(
+                unpaired_caps, unpaired_cap_lens.data.tolist(), batch_first=True
+            )[0].cuda()
+            unpaired_cap_output = caption_rnn(
+                unpaired_fakeimg_feature, unpaired_caps, unpaired_cap_lens
+            )
+            unpaired_cap_loss = (
+                caption_loss(unpaired_cap_output, unpaired_target_cap)
+                * cfg.TRAIN.SMOOTH.LAMBDA1
+            )
+
+            errG_total += paired_cap_loss + unpaired_cap_loss
+            paired_logs += "paired_cap_loss: %.2f " % (paired_cap_loss,)
+            unpaired_logs += "unpaired_cap_loss: %.2f " % (unpaired_cap_loss,)
+    return errG_total, paired_logs, unpaired_logs
 
 
 ##################################################################
